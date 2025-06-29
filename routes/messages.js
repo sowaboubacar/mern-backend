@@ -31,33 +31,46 @@ router.post('/', authMiddleware, async (req, res) => {
       author: req.user.userId
     });
 
-    // Suppression d'un message (protégé)
-router.delete('/:messageId', authMiddleware, async (req, res) => {
-  try {
-    const { messageId } = req.params;
-    const userId = req.user.userId;
-
-    const message = await Message.findById(messageId);
-    if (!message) return res.status(404).json({ message: 'Message non trouvé' });
-
-    // Option : seul l'auteur ou un admin peut supprimer
-    if (message.author.toString() !== userId /* && req.user.role !== 'admin' */) {
-      return res.status(403).json({ message: 'Suppression non autorisée' });
-    }
-
-    await message.remove();
-    res.json({ message: 'Message supprimé' });
-  } catch (err) {
-    res.status(500).json({ message: 'Erreur serveur' });
-  }
-});
-
-
     await message.save();
     res.status(201).json(message);
   } catch (err) {
     res.status(500).json({ message: 'Erreur serveur' });
   }
 });
+
+router.delete('/:messageId', authMiddleware, async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const userId = req.user.userId;
+
+    console.log('🗑️ Suppression message demandé :', messageId);
+    console.log('🔐 Utilisateur demandeur :', userId);
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      console.log('❌ Message non trouvé');
+      return res.status(404).json({ message: 'Message non trouvé' });
+    }
+
+    if (!message.author) {
+      console.log('❗ Problème : message.author est null ou undefined');
+      return res.status(500).json({ message: 'Message corrompu (pas d’auteur)' });
+    }
+
+    if (message.author.toString() !== userId) {
+      console.log('🚫 Suppression non autorisée');
+      return res.status(403).json({ message: 'Suppression non autorisée' });
+    }
+
+    await message.deleteOne(); // ✅ correction ici
+    console.log('✅ Message supprimé');
+    res.json({ message: 'Message supprimé' });
+
+  } catch (err) {
+    console.error('🔥 Erreur serveur lors de la suppression :', err);
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+});
+
 
 module.exports = router;

@@ -18,7 +18,7 @@ function authenticateToken(req, res, next) {
   });
 }
 
-// ✅ GET /api/users - récupère tous les utilisateurs
+// GET /api/users - récupère tous les utilisateurs
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const users = await User.find({}, '_id username email');
@@ -29,7 +29,7 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
-// ✅ POST /api/users/block/:userId - bloquer un utilisateur
+// POST /api/users/block/:userId - bloquer un utilisateur
 router.post('/block/:userId', authenticateToken, async (req, res) => {
   try {
     const blockerId = req.user.userId;
@@ -54,7 +54,7 @@ router.post('/block/:userId', authenticateToken, async (req, res) => {
   }
 });
 
-// ✅ POST /api/users/unblock/:userId - débloquer un utilisateur
+// POST /api/users/unblock/:userId - débloquer un utilisateur
 router.post('/unblock/:userId', authenticateToken, async (req, res) => {
   try {
     const blockerId = req.user.userId;
@@ -73,7 +73,7 @@ router.post('/unblock/:userId', authenticateToken, async (req, res) => {
   }
 });
 
-// ✅ GET /api/users/blocked - récupérer la liste des utilisateurs bloqués
+// GET /api/users/blocked - récupérer la liste des utilisateurs bloqués
 router.get('/blocked', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -82,6 +82,88 @@ router.get('/blocked', authenticateToken, async (req, res) => {
     res.json(user.blockedUsers);
   } catch (err) {
     console.error("Erreur récupération utilisateurs bloqués:", err.message);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+});
+
+// PUT /api/users/:id - mise à jour du profil utilisateur (ancienne route, inchangée)
+router.put('/:id', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const targetId = req.params.id;
+
+    if (userId !== targetId) {
+      return res.status(403).json({ message: "Vous ne pouvez modifier que votre propre profil." });
+    }
+
+    const { username, email } = req.body;
+
+    if (!username || !email) {
+      return res.status(400).json({ message: "Nom d'utilisateur et email sont requis." });
+    }
+
+    const existingUser = await User.findOne({
+      $or: [{ username }, { email }],
+      _id: { $ne: userId }
+    });
+    if (existingUser) {
+      return res.status(400).json({ message: "Nom d'utilisateur ou email déjà utilisé." });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "Utilisateur non trouvé." });
+
+    user.username = username;
+    user.email = email;
+
+    await user.save();
+
+    res.json({ message: "Profil mis à jour avec succès." });
+  } catch (err) {
+    console.error('Erreur mise à jour profil:', err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+});
+
+// Nouvelle route PATCH /api/users/:id/full - mise à jour et renvoi du user à jour
+router.patch('/:id/full', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const targetId = req.params.id;
+
+    if (userId !== targetId) {
+      return res.status(403).json({ message: "Vous ne pouvez modifier que votre propre profil." });
+    }
+
+    const { username, email } = req.body;
+
+    if (!username || !email) {
+      return res.status(400).json({ message: "Nom d'utilisateur et email sont requis." });
+    }
+
+    const existingUser = await User.findOne({
+      $or: [{ username }, { email }],
+      _id: { $ne: userId }
+    });
+    if (existingUser) {
+      return res.status(400).json({ message: "Nom d'utilisateur ou email déjà utilisé." });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "Utilisateur non trouvé." });
+
+    user.username = username;
+    user.email = email;
+
+    await user.save();
+
+    // Renvoi du message + user à jour
+    res.json({ 
+      message: "Profil mis à jour avec succès.",
+      user: { _id: user._id, username: user.username, email: user.email }
+    });
+  } catch (err) {
+    console.error('Erreur mise à jour profil:', err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 });
